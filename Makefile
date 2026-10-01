@@ -5,19 +5,21 @@ PIP     := $(VENV)/bin/pip
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help setup venv env up down reset-db ingest chat run logs psql clean
+.PHONY: help setup venv env up down reset-db ingest chat run test test-cov logs psql clean dev-deps
 
 help: ## Lista os comandos disponíveis
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
 
 setup: venv env ## Cria o venv, instala dependências e gera o .env
 
-venv: $(PYTHON)
-$(PYTHON): requirements.txt
+STAMP := $(VENV)/.installed
+
+venv: $(STAMP)
+$(STAMP): requirements.txt
 	python3 -m venv $(VENV)
 	$(PIP) install -q --upgrade pip
 	$(PIP) install -r requirements.txt
-	@touch $(PYTHON)
+	@touch $(STAMP)
 
 env: ## Cria o .env a partir do .env.example (se não existir)
 	@test -f .env || (cp .env.example .env && echo ".env criado: preencha GOOGLE_API_KEY")
@@ -38,6 +40,15 @@ chat: venv ## Inicia o chat no terminal
 	$(PYTHON) src/chat.py
 
 run: up ingest chat ## Sobe o banco, ingere o PDF e abre o chat
+
+test: dev-deps ## Executa os testes unitários (sem API nem banco reais)
+	$(PYTHON) -m pytest -v
+
+test-cov: dev-deps ## Testes com relatório de cobertura
+	$(PYTHON) -m pytest --cov=src --cov-report=term-missing
+
+dev-deps: venv
+	@$(PYTHON) -c "import pytest, pytest_cov" 2>/dev/null || $(PIP) install -q -r requirements-dev.txt
 
 logs: ## Logs do banco
 	$(COMPOSE) logs -f postgres

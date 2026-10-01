@@ -12,6 +12,7 @@ Aplicação em Python que implementa um pipeline de **RAG (Retrieval-Augmented G
 - [Como executar](#como-executar)
 - [Configuração (variáveis de ambiente)](#configuração-variáveis-de-ambiente)
 - [Comandos do Makefile](#comandos-do-makefile)
+- [Testes](#testes)
 - [Exemplo de uso](#exemplo-de-uso)
 - [Decisões de projeto](#decisões-de-projeto)
 - [Solução de problemas](#solução-de-problemas)
@@ -56,12 +57,19 @@ Pergunta ──► Embedding ──► busca por similaridade (k=10) ──► p
 ├── docker-compose.yml     # PostgreSQL + pgVector
 ├── Makefile               # Atalhos de setup e execução
 ├── requirements.txt       # Dependências Python (versões fixadas)
+├── requirements-dev.txt   # Dependências de teste (pytest, pytest-cov)
+├── pytest.ini
 ├── .env.example           # Template das variáveis de ambiente
 ├── document.pdf           # PDF a ser ingerido
 └── src/
     ├── ingest.py          # Ingestão: PDF → chunks → embeddings → pgVector
     ├── search.py          # Busca: recuperação + prompt + LLM
     └── chat.py            # CLI interativa
+└── tests/                 # Testes unitários (pytest)
+    ├── conftest.py
+    ├── test_ingest.py
+    ├── test_search.py
+    └── test_chat.py
 ```
 
 ## Pré-requisitos
@@ -124,11 +132,31 @@ Para encerrar o chat, digite `sair` (ou use `Ctrl+C`).
 | `make ingest` | Executa a ingestão do PDF |
 | `make chat` | Inicia o chat |
 | `make run` | `up` + `ingest` + `chat` |
+| `make test` / `make test-cov` | Testes unitários / com cobertura |
 | `make reset-db` | Remove containers e volume do banco |
 | `make psql` / `make logs` | Acesso ao banco / logs |
 | `make clean` | Remove o venv e caches |
 
 Use `make help` para ver a lista completa.
+
+## Testes
+
+Os testes unitários usam **pytest** e isolam todas as dependências externas com mocks e fakes: **não precisam de API key, internet nem do banco no ar**.
+
+```bash
+make test        # executa os testes
+make test-cov    # executa com relatório de cobertura
+```
+
+Ou manualmente: `pip install -r requirements-dev.txt && python -m pytest`.
+
+| Arquivo | O que valida |
+|---|---|
+| `test_ingest.py` | PDF inexistente ou sem texto; chunks de no máximo 1000 caracteres com overlap; collection recriada antes da inserção; IDs únicos e inserção em lotes |
+| `test_search.py` | Template com as regras e a mensagem de recusa; `k=10`; contexto concatenado e pergunta no prompt; temperatura 0; falha na inicialização retorna `None` |
+| `test_chat.py` | Loop do chat: encerramento com `sair`/`Ctrl+C`/EOF, entradas vazias ignoradas, erro em uma pergunta não derruba a sessão |
+
+> Os testes não avaliam a qualidade das respostas do Gemini; isso exige execução real com a API.
 
 ## Exemplo de uso
 
