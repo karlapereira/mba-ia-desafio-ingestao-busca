@@ -1,25 +1,28 @@
-import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_postgres import PGVector
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pydantic import ValidationError
 
-load_dotenv()
+from settings import ROOT_DIR, get_settings
 
-PDF_PATH = os.getenv("PDF_PATH", "document.pdf")
 BATCH_SIZE = 50
 
 
 def ingest_pdf():
-    pdf = Path(PDF_PATH)
+    try:
+        settings = get_settings()
+    except ValidationError as e:
+        sys.exit(f"Configuração inválida (verifique o .env):\n{e}")
+
+    pdf = Path(settings.pdf_path)
     if not pdf.is_absolute() and not pdf.exists():
-        pdf = Path(__file__).resolve().parent.parent / PDF_PATH
+        pdf = ROOT_DIR / settings.pdf_path
     if not pdf.exists():
-        sys.exit(f"PDF não encontrado: {PDF_PATH}")
+        sys.exit(f"PDF não encontrado: {settings.pdf_path}")
 
     docs = PyPDFLoader(str(pdf)).load()
     chunks = RecursiveCharacterTextSplitter(
@@ -30,12 +33,13 @@ def ingest_pdf():
         sys.exit("Nenhum texto extraído do PDF.")
 
     embeddings = GoogleGenerativeAIEmbeddings(
-        model=os.getenv("GOOGLE_EMBEDDING_MODEL", "models/gemini-embedding-001")
+        model=settings.google_embedding_model,
+        google_api_key=settings.google_api_key,
     )
     store = PGVector(
         embeddings=embeddings,
-        collection_name=os.environ["PG_VECTOR_COLLECTION_NAME"],
-        connection=os.environ["DATABASE_URL"],
+        collection_name=settings.pg_vector_collection_name,
+        connection=settings.database_url,
         use_jsonb=True,
     )
     # Reexecuções não duplicam dados: recria a collection antes de inserir.

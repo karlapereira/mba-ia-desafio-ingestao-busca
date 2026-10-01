@@ -1,11 +1,8 @@
-import os
-
-from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_postgres import PGVector
 
-load_dotenv()
+from settings import get_settings
 
 PROMPT_TEMPLATE = """
 CONTEXTO:
@@ -36,17 +33,20 @@ RESPONDA A "PERGUNTA DO USUÁRIO"
 
 def search_prompt(question=None):
     try:
+        settings = get_settings()
         embeddings = GoogleGenerativeAIEmbeddings(
-            model=os.getenv("GOOGLE_EMBEDDING_MODEL", "models/gemini-embedding-001")
+            model=settings.google_embedding_model,
+            google_api_key=settings.google_api_key,
         )
         store = PGVector(
             embeddings=embeddings,
-            collection_name=os.environ["PG_VECTOR_COLLECTION_NAME"],
-            connection=os.environ["DATABASE_URL"],
+            collection_name=settings.pg_vector_collection_name,
+            connection=settings.database_url,
             use_jsonb=True,
         )
         llm = ChatGoogleGenerativeAI(
-            model=os.getenv("GOOGLE_LLM_MODEL", "gemini-3.5-flash-lite"),
+            model=settings.google_llm_model,
+            google_api_key=settings.google_api_key,
             temperature=0,
         )
     except Exception as e:

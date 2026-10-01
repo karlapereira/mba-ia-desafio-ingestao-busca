@@ -4,6 +4,7 @@ import pytest
 from langchain_core.documents import Document
 
 import ingest
+from settings import Settings
 
 
 @pytest.fixture
@@ -13,12 +14,19 @@ def store():
         yield pgvector.return_value
 
 
+def _settings(pdf_path):
+    return Settings(
+        google_api_key="k", database_url="postgresql+psycopg://u:p@h/db",
+        pg_vector_collection_name="c", pdf_path=pdf_path,
+    )
+
+
 def _run(tmp_path, pages):
     pdf = tmp_path / "doc.pdf"
     pdf.write_bytes(b"%PDF")
     loader = MagicMock()
     loader.load.return_value = [Document(page_content=p) for p in pages]
-    with patch.object(ingest, "PDF_PATH", str(pdf)), \
+    with patch.object(ingest, "get_settings", return_value=_settings(str(pdf))), \
             patch.object(ingest, "PyPDFLoader", return_value=loader):
         ingest.ingest_pdf()
 
@@ -28,7 +36,7 @@ def _added_chunks(store):
 
 
 def test_pdf_inexistente_encerra_com_erro(store):
-    with patch.object(ingest, "PDF_PATH", "/nao/existe.pdf"):
+    with patch.object(ingest, "get_settings", return_value=_settings("/nao/existe.pdf")):
         with pytest.raises(SystemExit):
             ingest.ingest_pdf()
     store.add_documents.assert_not_called()
@@ -67,3 +75,9 @@ def test_ids_sao_unicos_e_inseridos_em_lotes(tmp_path, store):
     assert len(ids) == len(set(ids)) == len(_added_chunks(store))
     assert all(len(c.args[0]) <= ingest.BATCH_SIZE for c in store.add_documents.call_args_list)
     assert store.add_documents.call_count > 1
+
+
+def test_configuracao_invalida_encerra_com_erro():
+    with patch.object(ingest, "get_settings", side_effect=ingest.ValidationError.from_exception_data("Settings", [])):
+        with pytest.raises(SystemExit):
+            ingest.ingest_pdf()

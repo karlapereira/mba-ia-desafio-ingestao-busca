@@ -48,7 +48,7 @@ Pergunta ──► Embedding ──► busca por similaridade (k=10) ──► p
 | **langchain-postgres** (`PGVector`) + **psycopg 3** | Armazenamento e busca vetorial | Integração LangChain ↔ pgVector, com `similarity_search_with_score` |
 | **PostgreSQL + pgVector** (imagem `pgvector/pgvector:pg17`) | Banco vetorial | Reaproveita um banco relacional maduro, sem infraestrutura adicional |
 | **Docker / Docker Compose** | Execução do banco | Ambiente reproduzível com um único comando |
-| **python-dotenv** | Variáveis de ambiente | Mantém segredos (API key) fora do código |
+| **pydantic-settings** | Classe `Settings` | Carrega e valida as variáveis de ambiente/`.env` com tipos, valores padrão e `SecretStr` para a API key; falha cedo se faltar algo obrigatório |
 | **Make** | Automação | Simplifica setup e execução (`make run`) |
 
 ## Estrutura do projeto
@@ -64,11 +64,13 @@ Pergunta ──► Embedding ──► busca por similaridade (k=10) ──► p
 └── src/
     ├── ingest.py          # Ingestão: PDF → chunks → embeddings → pgVector
     ├── search.py          # Busca: recuperação + prompt + LLM
+    ├── settings.py        # Classe Settings (configuração via .env)
     └── chat.py            # CLI interativa
 └── tests/                 # Testes unitários (pytest)
     ├── conftest.py
     ├── test_ingest.py
     ├── test_search.py
+    ├── test_settings.py
     └── test_chat.py
 ```
 
@@ -154,6 +156,7 @@ Ou manualmente: `pip install -r requirements-dev.txt && python -m pytest`.
 |---|---|
 | `test_ingest.py` | PDF inexistente ou sem texto; chunks de no máximo 1000 caracteres com overlap; collection recriada antes da inserção; IDs únicos e inserção em lotes |
 | `test_search.py` | Template com as regras e a mensagem de recusa; `k=10`; contexto concatenado e pergunta no prompt; temperatura 0; falha na inicialização retorna `None` |
+| `test_settings.py` | Valores padrão, leitura do ambiente, erro quando falta variável obrigatória e API key oculta no `repr` |
 | `test_chat.py` | Loop do chat: encerramento com `sair`/`Ctrl+C`/EOF, entradas vazias ignoradas, erro em uma pergunta não derruba a sessão |
 
 > Os testes não avaliam a qualidade das respostas do Gemini; isso exige execução real com a API.
